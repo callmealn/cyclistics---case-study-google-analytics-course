@@ -1,0 +1,310 @@
+---
+editor_options:
+  markdown:
+    wrap: 72
+output:
+  pdf_document: default
+  word_document: default
+---
+
+# Cyclistic Bike case study - Google data analytics project
+
+### Nhi Doan Hoai
+
+------------------------------------------------------------------------
+
+```{=html}
+<style type="text/css">
+  body{
+  font-size: 14pt;
+}
+</style>
+```
+## **DATA ANALYSIS PROCESS**
+
+### About the company
+
+In 2016, Cyclistic launched a successful bike-share offering. Since
+then, the program has grown to a fleet of 5,824 bicycles that are
+geotracked and locked into a network of 692 stations across Chicago.
+Until now, Cyclistic's marketing strategy relied on building general
+awareness and appealing to broad consumer segments.The director of
+marketing believes the company's future success depends on maximizing
+the number of annual memberships. Therefore, your team wants to
+understand how casual riders and annual members use Cyclistic bikes
+differently. From these insights, your team will design a new marketing
+strategy to convert casual riders into annual members. But first,
+Cyclistic executives must approve your recommendations, so they must be
+backed up with compelling data insights and professional data
+visualizations.
+
+### **ASK**
+
+*The questions we needs to answer:*
+
+1\. How do annual members and casual rides use Cyclistic bikes
+differently?
+
+2\. Why would casual riders buy Cyclistic annual memberships?
+
+3\. How can Cylistic use digital media to influence casual riders to
+become members?
+
+### PREPARE
+
+The dataset The past data trip was obtained from here
+(<https://divvy-tripdata.s3.amazonaws.com/index.html>).
+
+Its a public data set prepared by the Motivate International Inc
+("Motivate"), the bike - sharing company operated in Chicago, Illinois,
+USA. Since its a first party data sets, the data is considered as
+fulfilling the ROCCC requirement ie. the data is reliable, original,
+comprehensive, current, and cited.
+
+### 
+
+I chose the data set from April 2020 to March 2021 since it's lighten
+and fulls of a year which still gives us a better view about their
+business. However, it takes us a lot of time to download full 12 months
+and extract them. By default, they are .csv files.
+
+### **PROCESS**
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load library
+
+```{r}
+library(tidyverse)
+library(skimr)
+library(janitor)
+library(lubridate)
+library(hms)
+```
+
+Load data
+
+```{r pressure, echo=FALSE}
+d4 <- read.csv("202004-divvy-tripdata.csv")
+d5 <- read.csv("202005-divvy-tripdata.csv")
+d6 <- read.csv("202006-divvy-tripdata.csv")
+d7 <- read.csv("202007-divvy-tripdata.csv")
+d8 <- read.csv("202008-divvy-tripdata.csv")
+d9 <- read.csv("202009-divvy-tripdata.csv")
+d10 <- read.csv("202010-divvy-tripdata.csv")
+d11 <- read.csv("202011-divvy-tripdata.csv")
+d12 <- read.csv("202012-divvy-tripdata.csv")
+d1 <- read.csv("202101-divvy-tripdata.csv")
+d2 <- read.csv("202102-divvy-tripdata.csv")
+d3 <- read.csv("202103-divvy-tripdata.csv")
+
+```
+
+Now, check all the data structure to consider whether their data types
+are consistent or not
+
+```{r}
+str(d1)
+str(d2)
+str(d3)
+str(d4)
+str(d5)
+str(d6)
+str(d7)
+str(d8)
+str(d9)
+str(d10)
+str(d11)
+str(d12)
+```
+
+Group d4 -> d11 have start_station_id and end_station_id is int while
+the rest are chr. Therefore, combine these data sets to change their
+data type.
+
+```{r}
+data_diff <- bind_rows(d4,d5,d6,d7,d8,d9,d10,d11)
+data_diff$start_station_id <- as.character(data_diff$start_station_id)
+data_diff$end_station_id <- as.character(data_diff$end_station_id)
+```
+
+Now, combine all data sets into one
+
+```{r}
+Bike <- bind_rows(d1,d2,d3,data_diff, d12)
+```
+
+Bike has 3489748 rows Since we do not use all the columns, let's drop
+some of them
+
+```{r}
+Bike <- Bike %>% select(-c(start_lat, start_lng, end_lat, end_lng))
+```
+
+Our main purpose is to compare the member types so we consider the time.
+Therefore, we need to process the columns relate the time
+
+```{r}
+#first, change the data type
+Bike$started_at <- as.POSIXct(Bike$started_at, tz ="")
+Bike$ended_at <- as.POSIXct(Bike$ended_at, tz ="")
+#second, we separate these columns in order to make it easy to analyze
+Bike$Date_in <- as.Date(format(Bike$started_at), "%Y-%m-%d")
+Bike$Date_month <- format(as.Date(format(Bike$started_at), "%Y-%m-%d"), "%Y-%m")
+Bike$Date_wd <- format(as.Date(Bike$started_at), "%A")
+```
+
+Calculate the time duration of each trips
+
+```{r}
+Bike$Time_duration <- difftime(Bike$ended_at, Bike$started_at)
+#diff time in seconds
+Bike$Time_duration <- as.numeric(Bike$Time_duration)
+Bike$Time_duration_hms <- hms(Bike$Time_duration)
+```
+
+Now it's time for deeper cleaning
+
+```{r}
+Bike <- Bike[!(Bike$start_station_name == "HQ QR"| Bike$Time_duration <=0),] #drop trip that has negative time duration
+skim(Bike)
+```
+
+Bike now has only 3478810 rows.The data set has N/A value in
+*start_station_id* and *end_station_id* which do not affect our analysis
+so we don't have to drop these values.
+
+```{r}
+summary(Bike$Time_duration)
+```
+
+### **ANALYSE -Stories of data**
+
+analyze with member casual
+
+```{r}
+#COMPARE 2 TYPES OF MEMBER IN TIME_DURATION
+aggregate(Bike$Time_duration~Bike$member_casual, FUN = summary)
+aggregate(Bike$Time_duration~Bike$member_casual, FUN = sum)
+table(Bike$member_casual)
+
+#COMPARE 2 TYPES OF MEMBER IN DATE_WD
+#re-arrange the weekday
+Bike$Date_wd <- ordered(Bike$Date_wd, levels= c("Monday","Tuesday","Wednesday", "Thursday", 
+                                                
+                                                "Friday", "Saturday", "Sunday"))
+#note: the ordered function here is to arrange the order of data when you analyze!
+aggregate(Bike$Time_duration~Bike$member_casual + Bike$Date_wd,
+          FUN = mean)
+# COMPARE 2 TYPES OF MEMBER IN MONTH
+aggregate(Bike$Time_duration~Bike$member_casual + Bike$Date_month,
+          FUN = mean)
+```
+
+analyze ridership data by type and weekday
+
+```{r}
+Bike %>% 
+  mutate(weekday = wday(started_at, label = TRUE)) %>%  #creates weekday field using wday()
+  group_by(member_casual, weekday) %>%  #groups by usertype and weekday
+  summarise(number_of_rides = n()							#calculates the number of rides and average duration 
+            ,average_duration = mean(Time_duration)) %>% 		# calculates the average duration
+  arrange(member_casual, weekday)
+```
+
+### **SHARE - Visualization**
+
+```{r}
+#Total users for both types
+Bike %>%
+  group_by(member_casual) %>%
+  summarise(Total_rides = n()) %>%
+  arrange(Total_rides) %>%
+  
+  ggplot(aes(x = member_casual, y = Total_rides, fill = member_casual)) +
+  geom_bar(stat = "identity") +
+  stat_identity(geom = "text", color = "white", size = 5, aes(label = Total_rides),
+                position = position_stack(vjust = 0.5)) +
+  scale_fill_manual(name = "Membership Type", values = c(casual ='#ff9900', member = '#0099cc')) +
+  labs(title = "Number of Cyclistic Rides", x = "Membership Type", y = "Total Number", subtitle = "From Apr 2020 to Mar 2021")
+
+```
+
+#### Let's visualize the number of rides by weekday
+
+```{r}
+#Number of rides per weekday, categorized by membership type
+Bike%>%
+  mutate(weekday = wday(started_at, label = TRUE)) %>%  
+  group_by(member_casual, weekday) %>%  
+  summarise(number_of_rides = n()							
+            ,average_duration = mean(Time_duration)) %>%
+  arrange(member_casual, weekday) %>%
+  ggplot(aes(x = weekday, y = number_of_rides, fill= member_casual)) + geom_col(position = 'dodge') + scale_fill_manual(name = "Membership type", values = c(casual = '#ff9900', member = '#0099cc')) +
+ labs(title = "Number of Rides" , x = "Weekday", y = "Total Number", subtitle = "Weekday")
+
+```
+
+Number of rides to membership type by month
+
+```{r}
+Bike%>%
+  group_by(member_casual, Date_month) %>%  
+  summarise(.groups = 'drop', average_duration = mean(Time_duration)) %>%
+ arrange(member_casual, Date_month) %>% mutate(Average_Time = hms(average_duration)) %>%
+                                            
+ ggplot(aes(x = Date_month, y = Average_Time, group = member_casual, colour = member_casual)) +
+ geom_line() + geom_point(size = 3) +
+ scale_colour_manual(name = "Membership Type",
+ values = c(casual = '#ff9900', member = '#0099cc')) +
+ labs(title = "Average Ride Duration By Month", x = "Month", y = "Average Time",
+ subtitle = "April 2020 to March 2021") +
+  theme(axis.text.x = element_text(angle = 60, hjust=1))
+```
+
+Number of rides to membership type by type of rides
+
+```{r}
+Bike %>%
+  group_by(rideable_type, member_casual) %>%
+  summarise(Total_number = n(), .groups ='drop') %>%
+  arrange(Total_number) %>%
+  
+  ggplot(aes(x = member_casual, y = Total_number, fill = rideable_type)) +
+  geom_bar(stat = "identity") +
+  stat_identity(geom = "text", colour = "white", aes(label = Total_number), position = position_stack(vjust = 0.5)) +
+  scale_fill_manual(name = " Bike Type",
+    labels = c("classic bike", "docked bike", "electric bike"),
+    values = c("#006699", "#ff9900", "#33cc99")) +
+  labs(title = "Type of bike by membership type", x = "Membership type", y = "Total number",
+       subtitle = "April 2020 to March 2021")
+```
+
+### **ACT**
+
+#### CONCLUSION
+
+\- *Member* membership always have higher total number of rides over the
+time. However, there is a trend in *Casual* membership that it increases
+significantly in the weekend(Saturday and Sunday) which suggests that
+*casual* membership could use their bike to go shopping, travel around,
+health activities, etc. These activities maybe for entertainment
+purpose. Also, *member* membership rides decrease slightly in Sunday,
+which could be implied that they are mostly working people.
+
+\- Time duration: *member* has a longer ride duration than *casual*,
+nearly 40 minutes to approximately 20 minutes
+
+\- Bike Type: *casual* prefers to use docked bike and electric bike
+while these ratios of *member* is lower.
+
+#### SOLUTION
+
+-   Offer more incentives for *member* and increase the renting
+    price(especially for docked and electric bike) to promote them being
+    casual membership
+-   Besides, we could analyze more about locations(I do not do it in
+    this part) to focus on where have more potential
+    customers(especially for *casual*)
